@@ -87,12 +87,33 @@ def format_duration(start_ms, stop_ms):
     return f"{hours}:{minutes:02d}:{seconds:02d}"
 
 
+def format_duration_hours(start_ms, stop_ms):
+    """Calculate and format duration in decimal hours for Clockify"""
+    duration_seconds = (stop_ms - start_ms) / 1000
+    hours = duration_seconds / 3600
+    return f"{hours:.2f}"
+
+
 def get_owner_name(owner_id, time_owners):
     """Get the owner name from owner_id"""
     for owner in time_owners:
         if owner['id'] == owner_id:
             return owner.get('name', 'Unknown')
     return 'Unknown'
+
+
+def get_parent_owner_name(owner_id, time_owners):
+    """Get the parent owner name (client) from owner_id"""
+    for owner in time_owners:
+        if owner['id'] == owner_id:
+            parent_id = owner.get('parent_id')
+            if parent_id:
+                # Find parent name
+                for parent_owner in time_owners:
+                    if parent_owner['id'] == parent_id:
+                        return parent_owner.get('name', '')
+            return ''  # No parent
+    return ''
 
 
 def load_jiffy_data(json_file):
@@ -162,6 +183,84 @@ def convert_to_toggl(data, output_file, email, from_date=None, to_date=None, out
                 'Project': project,
                 'Start date': start_dt.strftime('%Y-%m-%d'),
                 'Start time': start_dt.strftime('%H:%M:%S')
+            }
+            
+            writer.writerow(row)
+    
+    print(f"\nConverted {len(active_entries)} entries to {output_file}")
+    if from_date or to_date:
+        date_range = f" from {from_date or 'beginning'}" if from_date else ""
+        date_range += f" to {to_date or 'now'}" if to_date else ""
+        print(f"Date range:{date_range}")
+    print(f"Email: {email}")
+    print(f"Output timezone: {output_timezone}")
+
+
+def convert_to_clockify(data, output_file, email, from_date=None, to_date=None, output_timezone='Asia/Bangkok'):
+    """Convert Jiffy data to Clockify CSV format
+    
+    Args:
+        data: Jiffy data dictionary
+        output_file: Output CSV file path
+        email: Email address for the CSV
+        from_date: Optional start date string in format 'YYYY-MM-DD'
+        to_date: Optional end date string in format 'YYYY-MM-DD'
+        output_timezone: Timezone for output timestamps (default: 'Asia/Bangkok')
+    """
+    time_entries = data.get('time_entries', [])
+    time_owners = data.get('time_owners', [])
+    
+    # Filter active entries
+    active_entries = [e for e in time_entries if e.get('status') == 'ACTIVE']
+    
+    # Filter by date range if specified
+    if from_date or to_date:
+        start_date = datetime.strptime(from_date, '%Y-%m-%d').date() if from_date else None
+        end_date = datetime.strptime(to_date, '%Y-%m-%d').date() if to_date else None
+        
+        filtered_entries = []
+        for entry in active_entries:
+            entry_dt = parse_jiffy_timestamp(entry['start_time'], entry['start_time_zone'])
+            entry_date = entry_dt.date()
+            
+            if start_date and entry_date < start_date:
+                continue
+            if end_date and entry_date > end_date:
+                continue
+            filtered_entries.append(entry)
+        
+        active_entries = filtered_entries
+    
+    # Sort entries by start time
+    active_entries.sort(key=lambda e: e['start_time'])
+    
+    # Write to CSV
+    with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['Project', 'Client', 'Description', 'Task', 'Email', 'Tags', 'Billable',
+                      'Start Date', 'Start Time', 'Duration (h)']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, quoting=csv.QUOTE_NONNUMERIC)
+        
+        writer.writeheader()
+        
+        for entry in active_entries:
+            start_dt = convert_to_output_timezone(entry['start_time'], entry['start_time_zone'], output_timezone)
+            stop_dt = convert_to_output_timezone(entry['stop_time'], entry['stop_time_zone'], output_timezone)
+            duration = format_duration(entry['start_time'], entry['stop_time'])
+            project = get_owner_name(entry['owner_id'], time_owners)
+            client = get_parent_owner_name(entry['owner_id'], time_owners)
+            description = entry.get('note', '')
+            
+            row = {
+                'Project': project,
+                'Client': client,
+                'Description': description or '',
+                'Task': '',
+                'Email': email,
+                'Tags': '',
+                'Billable': 'No',
+                'Start Date': start_dt.strftime('%m/%d/%Y'),
+                'Start Time': start_dt.strftime('%-I:%M %p'),
+                'Duration (h)': duration
             }
             
             writer.writerow(row)
@@ -291,14 +390,14 @@ def main():
     )
     parser.add_argument(
         '-m', '--mode',
-        choices=['convert', 'print-only'],
-        default='convert',
-        help='Operation mode: convert (default, convert to Toggl CSV) or print-only (display data without conversion)'
+        choices=['toggl', 'clockify', 'print-only'],
+        default='toggl',
+        help='Operation mode: toggl (default, convert to Toggl CSV), clockify (convert to Clockify CSV), or print-only (display data without conversion)'
     )
     parser.add_argument(
         '-o', '--output',
-        default='data/toggl_output.csv',
-        help='Output CSV file (default: data/toggl_output.csv)'
+        default=None,
+        help='Output CSV file (default: data/toggl_output.csv for toggl mode, data/clockify_output.csv for clockify mode)'
     )
     parser.add_argument(
         '--email',
@@ -344,15 +443,35 @@ def main():
         print(f"{'='*80}\n")
         return 0
     
-    # Handle convert mode (default)
-    if args.mode == 'convert':
-        # Check required parameters for convert mode
+    # Handle toggl mode (default)
+    if args.mode == 'toggl':
+        # Check required parameters for toggl mode
         if not args.email:
-            print("Error: --email is required for convert mode")
+            print("Error: --email is required for toggl mode")
             print("Example: python3 convert_jiffy_toggl.py --email 'your@email.com'")
             return 1
         
-        convert_to_toggl(data, args.output, args.email, args.from_date, args.to_date, args.output_timezone)
+        # Set default output file if not specified
+        output_file = args.output if args.output else 'data/toggl_output.csv'
+        
+        convert_to_toggl(data, output_file, args.email, args.from_date, args.to_date, args.output_timezone)
+        print(f"\n{'='*80}")
+        print("Conversion completed successfully!")
+        print(f"{'='*80}\n")
+        return 0
+    
+    # Handle clockify mode
+    if args.mode == 'clockify':
+        # Check required parameters for clockify mode
+        if not args.email:
+            print("Error: --email is required for clockify mode")
+            print("Example: python3 convert_jiffy_toggl.py -m clockify --email 'your@email.com'")
+            return 1
+        
+        # Set default output file if not specified
+        output_file = args.output if args.output else 'data/clockify_output.csv'
+        
+        convert_to_clockify(data, output_file, args.email, args.from_date, args.to_date, args.output_timezone)
         print(f"\n{'='*80}")
         print("Conversion completed successfully!")
         print(f"{'='*80}\n")
