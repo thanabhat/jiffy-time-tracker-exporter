@@ -64,13 +64,14 @@ def load_jiffy_data(json_file):
         return json.load(f)
 
 
-def print_examples(data, num_examples=5, filter_date=None):
+def print_examples(data, num_examples=5, from_date=None, to_date=None):
     """Print example entries from Jiffy data
     
     Args:
         data: Jiffy data dictionary
         num_examples: Number of examples to show
-        filter_date: Optional date string in format 'YYYY-MM-DD' to filter entries
+        from_date: Optional start date string in format 'YYYY-MM-DD' to filter entries
+        to_date: Optional end date string in format 'YYYY-MM-DD' to filter entries
     """
     time_entries = data.get('time_entries', [])
     time_owners = data.get('time_owners', [])
@@ -95,21 +96,35 @@ def print_examples(data, num_examples=5, filter_date=None):
     # Filter active entries
     active_entries = [e for e in time_entries if e.get('status') == 'ACTIVE']
     
-    # Filter by date if specified
-    if filter_date:
+    # Filter by date range if specified
+    if from_date or to_date:
         try:
-            target_date = datetime.strptime(filter_date, '%Y-%m-%d').date()
+            start_date = datetime.strptime(from_date, '%Y-%m-%d').date() if from_date else None
+            end_date = datetime.strptime(to_date, '%Y-%m-%d').date() if to_date else None
+            
             filtered_entries = []
             for entry in active_entries:
-                start_dt = parse_jiffy_timestamp(entry['start_time'], entry['start_time_zone'])
-                if start_dt.date() == target_date:
-                    filtered_entries.append(entry)
+                entry_dt = parse_jiffy_timestamp(entry['start_time'], entry['start_time_zone'])
+                entry_date = entry_dt.date()
+                
+                # Check if entry falls within the date range
+                if start_date and entry_date < start_date:
+                    continue
+                if end_date and entry_date > end_date:
+                    continue
+                filtered_entries.append(entry)
+            
             active_entries = filtered_entries
             print(f"\n{'='*80}")
-            print(f"Time Entries for {filter_date} ({len(active_entries)} entries)")
+            if from_date and to_date:
+                print(f"Time Entries from {from_date} to {to_date} ({len(active_entries)} entries)")
+            elif from_date:
+                print(f"Time Entries from {from_date} onwards ({len(active_entries)} entries)")
+            else:
+                print(f"Time Entries up to {to_date} ({len(active_entries)} entries)")
             print(f"{'='*80}")
-        except ValueError:
-            print(f"\nWarning: Invalid date format '{filter_date}'. Use YYYY-MM-DD format.")
+        except ValueError as e:
+            print(f"\nWarning: Invalid date format. Use YYYY-MM-DD format.")
             print(f"Showing last {num_examples} entries instead.\n")
             active_entries = active_entries[-num_examples:]
     else:
@@ -164,6 +179,11 @@ def main():
         help='Input Jiffy JSON file (default: data/jiffy_input.json)'
     )
     parser.add_argument(
+        '-m', '--mode',
+        choices=['print-only'],
+        help='Operation mode: print-only (display data without conversion)'
+    )
+    parser.add_argument(
         '-o', '--output',
         help='Output CSV file (default: auto-generated based on input filename)'
     )
@@ -174,8 +194,12 @@ def main():
         help='Number of example entries to print (default: 5)'
     )
     parser.add_argument(
-        '-d', '--date',
-        help='Filter entries by date (format: YYYY-MM-DD, e.g., 2025-12-24)'
+        '-f', '--from-date',
+        help='Filter entries from this date (format: YYYY-MM-DD, e.g., 2025-12-24)'
+    )
+    parser.add_argument(
+        '-t', '--to-date',
+        help='Filter entries to this date (format: YYYY-MM-DD, e.g., 2025-12-27)'
     )
     
     args = parser.parse_args()
@@ -189,12 +213,16 @@ def main():
     print(f"Loading Jiffy data from: {args.input_file}")
     data = load_jiffy_data(args.input_file)
     
-    # Print examples
-    print_examples(data, args.num_examples, args.date)
+    # Handle print-only mode
+    if args.mode == 'print-only':
+        print_examples(data, args.num_examples, args.from_date, args.to_date)
+        print(f"\n{'='*80}")
+        print("Data loaded successfully!")
+        print(f"{'='*80}\n")
+        return 0
     
-    print(f"\n{'='*80}")
-    print("Data loaded successfully!")
-    print(f"{'='*80}\n")
+    # Default mode (to be implemented)
+    print("Default conversion mode - to be implemented")
     
     return 0
 
