@@ -7,22 +7,38 @@ import json
 import argparse
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 def parse_jiffy_timestamp(timestamp_ms, tz_name='Asia/Bangkok'):
     """Convert Jiffy timestamp (milliseconds) to datetime object in local timezone
     
     Jiffy stores timestamps in UTC milliseconds, but displays them in local time.
-    For Asia/Bangkok, we need to add 7 hours to UTC.
+    Handles both IANA timezone names (e.g., 'Asia/Bangkok') and GMT offset formats (e.g., 'GMT+07:00').
     """
     dt_utc = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
     
-    # Convert to Bangkok time (UTC+7)
-    if tz_name == 'Asia/Bangkok':
-        dt_local = dt_utc + timedelta(hours=7)
-        return dt_local.replace(tzinfo=None)  # Remove tzinfo for cleaner display
+    # Handle GMT offset format (e.g., 'GMT+07:00' or 'GMT-05:00')
+    if tz_name.startswith('GMT'):
+        # Extract the offset part (e.g., '+07:00')
+        offset_str = tz_name[3:]  # Remove 'GMT' prefix
+        if offset_str:
+            # Parse hours and minutes
+            sign = 1 if offset_str[0] == '+' else -1
+            parts = offset_str[1:].split(':')
+            hours = int(parts[0])
+            minutes = int(parts[1]) if len(parts) > 1 else 0
+            offset = timedelta(hours=sign * hours, minutes=sign * minutes)
+            dt_local = dt_utc + offset
+            return dt_local.replace(tzinfo=None)
     
-    return dt_utc
+    # Use ZoneInfo for IANA timezone names
+    try:
+        dt_local = dt_utc.astimezone(ZoneInfo(tz_name))
+        return dt_local.replace(tzinfo=None)
+    except Exception:
+        # Fallback to UTC if timezone is not recognized
+        return dt_utc.replace(tzinfo=None)
 
 
 def format_duration(start_ms, stop_ms):
