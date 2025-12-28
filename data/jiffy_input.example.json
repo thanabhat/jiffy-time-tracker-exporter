@@ -1,0 +1,70 @@
+{
+  "time_entries": [
+    {
+      "id": "abc123-def456-ghi789",
+      "owner_id": "proj001",
+      "start_time": 1704067200000,
+      "start_time_zone": "America/New_York",
+      "stop_time": 1704074400000,
+      "stop_time_zone": "America/New_York",
+      "note": "Morning standup meeting",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "abc123-def456-ghi790",
+      "owner_id": "proj002",
+      "start_time": 1704074400000,
+      "start_time_zone": "America/New_York",
+      "stop_time": 1704088800000,
+      "stop_time_zone": "America/New_York",
+      "note": "Feature development",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "abc123-def456-ghi791",
+      "owner_id": "proj003",
+      "start_time": 1704092400000,
+      "start_time_zone": "America/New_York",
+      "stop_time": 1704096000000,
+      "stop_time_zone": "America/New_York",
+      "note": "",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "abc123-def456-ghi792",
+      "owner_id": "proj001",
+      "start_time": 1704153600000,
+      "start_time_zone": "America/New_York",
+      "stop_time": 1704182400000,
+      "stop_time_zone": "America/New_York",
+      "note": "",
+      "status": "DELETED"
+    }
+  ],
+  "time_owners": [
+    {
+      "id": "proj001",
+      "name": "Development",
+      "parent_id": "client001",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "proj002",
+      "name": "Testing",
+      "parent_id": "client001",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "proj003",
+      "name": "Personal",
+      "parent_id": "",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "client001",
+      "name": "ABC Company",
+      "parent_id": "",
+      "status": "ACTIVE"
+    }
+  ]
+}

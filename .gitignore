@@ -125,5 +125,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Data directory
-data/
+# Data directory - ignore all except examples
+data/*
+!data/*.example.*

@@ -1,0 +1,6 @@
+"Description","Billable","Duration","Member","Email","Project","Tags","Start date","Start time","Stop date","Stop time"
+"Code review","No","2:00:00","John Doe","john.doe@example.com","Development","-","2024-01-15","09:00:00","2024-01-15","11:00:00"
+"Bug fixing","Yes","3:30:00","John Doe","john.doe@example.com","Development","urgent","2024-01-15","14:00:00","2024-01-15","17:30:00"
+"-","No","1:00:00","John Doe","john.doe@example.com","Meetings","-","2024-01-15","11:00:00","2024-01-15","12:00:00"
+"Client presentation","Yes","2:00:00","John Doe","john.doe@example.com","Consulting","-","2024-01-16","10:00:00","2024-01-16","12:00:00"
+"Documentation","No","1:30:00","John Doe","john.doe@example.com","Development","-","2024-01-16","14:00:00","2024-01-16","15:30:00"
