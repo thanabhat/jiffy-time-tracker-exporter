@@ -5,6 +5,7 @@ Convert Toggl Track CSV export to Clockify CSV format
 
 import csv
 import argparse
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -41,7 +42,30 @@ def load_toggl_csv(csv_file):
     return entries
 
 
-def convert_to_clockify(entries, output_file, from_date=None, to_date=None):
+def load_projects_json(json_file):
+    """Load Toggl projects JSON file and create project to client mapping
+    
+    Args:
+        json_file: Path to the projects JSON file
+        
+    Returns:
+        Dictionary mapping project name to client name
+    """
+    with open(json_file, 'r', encoding='utf-8') as f:
+        projects = json.load(f)
+    
+    # Create mapping from project name to client name
+    project_to_client = {}
+    for project in projects:
+        project_name = project.get('name', '')
+        client_name = project.get('client_name', '')
+        if project_name:
+            project_to_client[project_name] = client_name
+    
+    return project_to_client
+
+
+def convert_to_clockify(entries, output_file, from_date=None, to_date=None, project_to_client=None):
     """Convert Toggl data to Clockify CSV format
     
     Args:
@@ -49,6 +73,7 @@ def convert_to_clockify(entries, output_file, from_date=None, to_date=None):
         output_file: Output CSV file path
         from_date: Optional start date string in format 'YYYY-MM-DD'
         to_date: Optional end date string in format 'YYYY-MM-DD'
+        project_to_client: Optional dictionary mapping project names to client names
     """
     # Filter by date range if specified
     if from_date or to_date:
@@ -84,9 +109,15 @@ def convert_to_clockify(entries, output_file, from_date=None, to_date=None):
             start_date = datetime.strptime(entry['Start date'], '%Y-%m-%d')
             start_time = datetime.strptime(entry['Start time'], '%H:%M:%S')
             
+            # Get client name from project mapping if available
+            project_name = entry.get('Project', '')
+            client_name = ''
+            if project_to_client and project_name:
+                client_name = project_to_client.get(project_name, '')
+            
             row = {
-                'Project': entry.get('Project', ''),
-                'Client': '',  # Leave blank as requested
+                'Project': project_name,
+                'Client': client_name,
                 'Description': entry.get('Description', ''),
                 'Task': '',
                 'Email': entry.get('Email', ''),
@@ -210,6 +241,11 @@ def main():
         help='Output CSV file (default: data/clockify_output.csv)'
     )
     parser.add_argument(
+        '-p', '--projects',
+        default='data/toggl_projects.json',
+        help='Toggl projects JSON file for client mapping (default: data/toggl_projects.json)'
+    )
+    parser.add_argument(
         '-n', '--num-examples',
         type=int,
         default=5,
@@ -235,6 +271,16 @@ def main():
     print(f"Loading Toggl data from: {args.input_file}")
     entries = load_toggl_csv(args.input_file)
     
+    # Load projects mapping if file exists
+    project_to_client = None
+    projects_path = Path(args.projects)
+    if projects_path.exists():
+        print(f"Loading projects mapping from: {args.projects}")
+        project_to_client = load_projects_json(args.projects)
+        print(f"Loaded {len(project_to_client)} project-to-client mappings")
+    else:
+        print(f"Projects file not found: {args.projects} (client names will be blank)")
+    
     # Handle print-only mode
     if args.mode == 'print-only':
         print_examples(entries, args.num_examples, args.from_date, args.to_date)
@@ -248,7 +294,7 @@ def main():
         # Set default output file if not specified
         output_file = args.output if args.output else 'data/clockify_output.csv'
         
-        convert_to_clockify(entries, output_file, args.from_date, args.to_date)
+        convert_to_clockify(entries, output_file, args.from_date, args.to_date, project_to_client)
         print(f"\n{'='*80}")
         print("Conversion completed successfully!")
         print(f"{'='*80}\n")
